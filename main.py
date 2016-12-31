@@ -10,6 +10,13 @@ import zmq
 import zmq.asyncio
 import asyncio
 
+# Here is the config.
+local_port = 8081
+remotes = [
+    ("tcp://163.172.84.141:9091", "tcp://163.172.84.141:9092"),
+    ("tcp://163.172.84.141:10091", "tcp://163.172.84.141:10092")
+]
+
 loop = zmq.asyncio.ZMQEventLoop()
 asyncio.set_event_loop(loop)
 
@@ -250,12 +257,6 @@ async def main(local_port, remotes):
         traceback.print_exc()
 
 if __name__ == '__main__':
-    local_port = 8081
-    remotes = [
-        ("tcp://163.172.84.141:9091", "tcp://163.172.84.141:9092"),
-        ("tcp://163.172.84.141:10091", "tcp://163.172.84.141:10092")
-    ]
-
     tasks = [
         main(local_port, remotes)
     ]
