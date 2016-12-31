@@ -94,6 +94,8 @@ class Proxy:
             return None
         active_remotes = [remote for remote in self.remote_nodes
                           if remote.stats.interval < 10]
+        if not active_remotes:
+            return None
         remote = max(active_remotes, key=lambda remote: remote.stats.height)
         print("Using %s." % remote.url)
         return remote
