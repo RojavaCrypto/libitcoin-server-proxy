@@ -1,7 +1,10 @@
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
+import random
+import struct
 import sys
+import time
 import traceback
 import zmq
 import zmq.asyncio
@@ -18,15 +21,15 @@ class Proxy:
 
         self._stopped = False
 
-    def add_remote(self, url):
-        self.remote_nodes += [RemoteNode(url)]
+    def add_remote(self, query_url, heartbeat_url):
+        self.remote_nodes += [RemoteNode(query_url, heartbeat_url)]
 
     def start(self):
         self._listen = Interface(self.local_url)
 
         context = zmq.asyncio.Context()
         self._listen.start(context)
-        [remote_url.start(context) for remote_url in self.remote_nodes]
+        [remote.start(context) for remote in self.remote_nodes]
 
         self._poller = zmq.asyncio.Poller()
         self._poller.register(self._listen.socket, zmq.POLLIN)
@@ -34,6 +37,7 @@ class Proxy:
             self._poller.register(remote.socket, zmq.POLLIN)
 
     def stop(self):
+        [remote.stop() for remote in self.remote_nodes]
         self._stopped = True
 
     async def run(self):
@@ -75,7 +79,8 @@ class Proxy:
 
     @property
     def current_remote(self):
-        return self.remote_nodes[0]
+        remote = max(self.remote_nodes, key=lambda remote: remote.stats.height)
+        return remote
 
 class Interface:
 
@@ -128,13 +133,18 @@ class Interface:
 
 class RemoteNode:
 
-    def __init__(self, url):
-        self._url = url
+    def __init__(self, query_url, heartbeat_url):
+        self._url = query_url
+        self.stats = NodeStats(query_url, heartbeat_url)
 
     def start(self, context):
         self.socket = context.socket(zmq.DEALER)
         self.socket.connect(self._url)
         print("Connected:", self._url)
+        self.stats.start(context)
+
+    def stop(self):
+        self.stats.stop()
 
     @property
     def url(self):
@@ -150,10 +160,89 @@ class RemoteNode:
             return
         return response
 
-async def main(local_port, remote_url):
+class NodeStats:
+
+    def __init__(self, query_url, heartbeat_url):
+        self._query_url = query_url
+        self._heartbeat_url = heartbeat_url
+        self._last_time = time.time()
+        self._height = 0
+        self._stopped = False
+
+    def start(self, context):
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._monitor_heartbeat(context))
+        loop.create_task(self._monitor_height(context))
+
+    def stop(self):
+        self._stopped = True
+
+    async def _monitor_heartbeat(self, context):
+        socket = context.socket(zmq.SUB)
+        socket.connect(self._heartbeat_url)
+        socket.setsockopt(zmq.SUBSCRIBE, b"")
+        while not self._stopped:
+            response = await socket.recv_multipart()
+            self._last_time = time.time()
+
+    @staticmethod
+    def _create_random_id():
+        MAX_UINT32 = 4294967295
+        return random.randint(0, MAX_UINT32)
+
+    async def _monitor_height(self, context):
+        while not self._stopped:
+            self._height = await self._get_height(context)
+            print("Height %s: %s" % (self._height, self._query_url))
+            await asyncio.sleep(20)
+
+    async def _get_height(self, context):
+        query_socket = context.socket(zmq.DEALER)
+        query_socket.connect(self._query_url)
+
+        command = b"blockchain.fetch_last_height"
+        ident = self._create_random_id()
+        data = b""
+
+        request = [
+            command,
+            struct.pack('<I', ident),
+            data
+        ]
+        await query_socket.send_multipart(request)
+
+        response = await query_socket.recv_multipart()
+
+        command, response_ident, data = response
+        if struct.unpack('<I', response_ident)[0] != ident:
+            print("Error: non-matching idents", file=sys.stderr)
+            return
+        error = struct.unpack('<I', data[:4])[0]
+        if error:
+            print("Error: returning height in stats", file=sys.stderr)
+            return
+
+        height = struct.unpack('<I', data[4:])[0]
+        return height
+
+    @property
+    def height(self):
+        return self._height
+
+    @property
+    def interval(self):
+        delta = time.time() - self._last_time
+        assert delta > 0
+        return delta
+
+    def score(self):
+        return 1.0 / self.interval
+
+async def main(local_port, remotes):
     try:
         proxy = Proxy(local_port)
-        proxy.add_remote(remote_url)
+        for query_url, heartbeat_url in remotes:
+            proxy.add_remote(query_url, heartbeat_url)
         proxy.start()
 
         await proxy.run()
@@ -187,11 +276,13 @@ async def fake_connect(port):
 
 if __name__ == '__main__':
     local_port = 8081
-    remote_url = "tcp://163.172.84.141:9091"
+    remotes = [
+        ("tcp://163.172.84.141:9091", "tcp://163.172.84.141:9092")
+    ]
 
     tasks = [
         #fake_connect(local_port),
-        main(local_port, remote_url)
+        main(local_port, remotes)
     ]
     tasks.extend(context.tasks())
     loop.set_debug(True)
