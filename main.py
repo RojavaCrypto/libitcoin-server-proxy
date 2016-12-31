@@ -78,6 +78,7 @@ class Proxy:
             return
 
         await self.current_remote.send(request)
+        print("Using %s." % self.current_remote.url)
         print("Sent:", request)
 
     async def _return_response(self, remote):
@@ -97,7 +98,6 @@ class Proxy:
         if not active_remotes:
             return None
         remote = max(active_remotes, key=lambda remote: remote.stats.height)
-        print("Using %s." % remote.url)
         return remote
 
 class Interface:
