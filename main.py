@@ -79,7 +79,9 @@ class Proxy:
 
     @property
     def current_remote(self):
-        remote = max(self.remote_nodes, key=lambda remote: remote.stats.height)
+        active_remotes = [remote for remote in self.remote_nodes
+                          if remote.stats.interval < 10]
+        remote = max(active_remotes, key=lambda remote: remote.stats.height)
         print("Using %s." % remote.url)
         return remote
 
@@ -235,9 +237,6 @@ class NodeStats:
         delta = time.time() - self._last_time
         assert delta > 0
         return delta
-
-    def score(self):
-        return 1.0 / self.interval
 
 async def main(local_port, remotes):
     try:
