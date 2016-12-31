@@ -80,6 +80,7 @@ class Proxy:
     @property
     def current_remote(self):
         remote = max(self.remote_nodes, key=lambda remote: remote.stats.height)
+        print("Using %s." % remote.url)
         return remote
 
 class Interface:
@@ -277,7 +278,8 @@ async def fake_connect(port):
 if __name__ == '__main__':
     local_port = 8081
     remotes = [
-        ("tcp://163.172.84.141:9091", "tcp://163.172.84.141:9092")
+        ("tcp://163.172.84.141:9091", "tcp://163.172.84.141:9092"),
+        ("tcp://163.172.84.141:10091", "tcp://163.172.84.141:10092")
     ]
 
     tasks = [
