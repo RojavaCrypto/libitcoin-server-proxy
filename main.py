@@ -51,7 +51,7 @@ class Proxy:
         # Listen for something from localhost
         # Send and route response from server
         while not self._stopped:
-            events = await self._poller.poll(timeout=0.1)
+            events = await self._poller.poll()
             for socket, mask in events:
                 await self._process(socket)
 
