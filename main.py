@@ -73,6 +73,10 @@ class Proxy:
         if request is None:
             return
 
+        if self.current_remote is None:
+            print("Dropping:", request)
+            return
+
         await self.current_remote.send(request)
         print("Sent:", request)
 
@@ -86,6 +90,8 @@ class Proxy:
 
     @property
     def current_remote(self):
+        if not self.remote_nodes:
+            return None
         active_remotes = [remote for remote in self.remote_nodes
                           if remote.stats.interval < 10]
         remote = max(active_remotes, key=lambda remote: remote.stats.height)
