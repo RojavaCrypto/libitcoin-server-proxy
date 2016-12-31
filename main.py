@@ -1,5 +1,5 @@
 import logging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 import random
 import struct
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     tasks = [
         main(local_port, remotes)
     ]
-    loop.set_debug(True)
+    #loop.set_debug(True)
     loop.run_until_complete(asyncio.wait(tasks))
     loop.close()
 
