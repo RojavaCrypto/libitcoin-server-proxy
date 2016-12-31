@@ -250,31 +250,6 @@ async def main(local_port, remotes):
     except:
         traceback.print_exc()
 
-import libbitcoin.server
-context = libbitcoin.server.Context()
-
-async def fake_connect(port):
-    url = "tcp://localhost:%s" % port
-    print("Connecting:", url)
-
-    client = context.Client(url)
-
-    ec, height = await client.last_height()
-    if ec:
-        print("Couldn't fetch last_height:", ec, file=sys.stderr)
-        context.stop()
-        return
-    print("Last height:", height)
-
-    ec, total_connections = await client.total_connections()
-    if ec:
-        print("Couldn't fetch total_connections:", ec, file=sys.stderr)
-        context.stop()
-        return
-    print("Total server connections:", total_connections)
-
-    context.stop()
-
 if __name__ == '__main__':
     local_port = 8081
     remotes = [
@@ -283,10 +258,8 @@ if __name__ == '__main__':
     ]
 
     tasks = [
-        #fake_connect(local_port),
         main(local_port, remotes)
     ]
-    tasks.extend(context.tasks())
     loop.set_debug(True)
     loop.run_until_complete(asyncio.wait(tasks))
     loop.close()
